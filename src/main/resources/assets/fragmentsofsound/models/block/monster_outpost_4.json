@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_column",
+  "textures": {
+    "end": "fragmentsofsound:block/monster_outpost_4",
+    "side": "fragmentsofsound:block/monster_outpost_4"
+  }
+}

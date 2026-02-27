@@ -1,0 +1,6 @@
+{
+  "parent": "fragmentsofsound:block/corrupt_block",
+  "textures": {
+    "layer0": "fragmentsofsound:block/corrupt_block"
+  }
+}

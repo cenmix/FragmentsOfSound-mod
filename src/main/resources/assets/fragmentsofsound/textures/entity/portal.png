@@ -1,0 +1,5 @@
+{
+  "parent": "textures/entity/portal.png",
+  "width": 128,
+  "height": 256
+}

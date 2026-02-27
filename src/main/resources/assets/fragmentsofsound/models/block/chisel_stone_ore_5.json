@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "fragmentsofsound:block/chisel_stone5"
+  }
+}
