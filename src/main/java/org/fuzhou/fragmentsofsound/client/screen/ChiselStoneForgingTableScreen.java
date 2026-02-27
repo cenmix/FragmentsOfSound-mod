@@ -14,13 +14,16 @@ import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.item.ShieldItem;
+import org.fuzhou.fragmentsofsound.block.entity.ChiselStoneForgingTableBlockEntity;
 import org.fuzhou.fragmentsofsound.menu.ChiselStoneForgingTableMenu;
 import org.fuzhou.fragmentsofsound.network.AllocatePotentialPacket;
 import org.fuzhou.fragmentsofsound.network.ForgeCraftPacket;
 import org.fuzhou.fragmentsofsound.network.NetworkHandler;
+import org.fuzhou.fragmentsofsound.network.SetLinkKeyPacket;
 import org.fuzhou.fragmentsofsound.rune.Rune;
 import org.fuzhou.fragmentsofsound.rune.RuneData;
 import org.fuzhou.fragmentsofsound.item.ChiselStoneItem;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,6 +50,9 @@ public class ChiselStoneForgingTableScreen extends AbstractContainerScreen<Chise
     private int infoPage = 0;
     private List<Rune> allRunes = new ArrayList<>();
     private List<String> currentInfoLines = new ArrayList<>();
+
+    private int waitingForKeySlot = -1;
+    private int[] linkKeyBindings = new int[4];
 
     public ChiselStoneForgingTableScreen(ChiselStoneForgingTableMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -88,6 +94,16 @@ public class ChiselStoneForgingTableScreen extends AbstractContainerScreen<Chise
 
         addRenderableWidget(prevPageButton);
         addRenderableWidget(nextPageButton);
+
+        loadLinkKeyBindings();
+    }
+
+    private void loadLinkKeyBindings() {
+        Map<Integer, Integer> bindings = menu.getLinkKeyBindings();
+        for (int i = 0; i < 4; i++) {
+            int slot = ChiselStoneForgingTableBlockEntity.LINK_SLOT_1 + i;
+            linkKeyBindings[i] = bindings.getOrDefault(slot, -1);
+        }
     }
 
     @Override
@@ -102,6 +118,7 @@ public class ChiselStoneForgingTableScreen extends AbstractContainerScreen<Chise
         runeButtonPositions.clear();
 
         ItemStack displayStack = ItemStack.EMPTY;
+        ItemStack weaponStack = ItemStack.EMPTY;
 
         Slot outputSlot = menu.getSlot(38);
         Slot weaponSlot = menu.getSlot(36);
@@ -110,9 +127,12 @@ public class ChiselStoneForgingTableScreen extends AbstractContainerScreen<Chise
             displayStack = outputSlot.getItem();
         } else if (weaponSlot != null && weaponSlot.hasItem()) {
             displayStack = weaponSlot.getItem();
+            weaponStack = weaponSlot.getItem();
         }
 
-        if (!displayStack.isEmpty()) {
+        int totalPages = 1;
+        
+        if (!weaponStack.isEmpty() || !displayStack.isEmpty()) {
             boolean isChisel = displayStack.getItem() instanceof ChiselStoneItem;
 
             if (isChisel && !RuneData.hasRune(displayStack)) {
@@ -129,24 +149,110 @@ public class ChiselStoneForgingTableScreen extends AbstractContainerScreen<Chise
                     }
                 }
 
-                int totalPages = allRunes.size() + 1;
+                totalPages = allRunes.size() + 1;
+                
+                if (!weaponStack.isEmpty()) {
+                    totalPages += 1;
+                }
 
                 if (currentPage == 0) {
                     renderWeaponInfo(guiGraphics, displayStack);
-                } else {
+                } else if (currentPage <= allRunes.size()) {
                     int runeIndex = currentPage - 1;
                     if (runeIndex < allRunes.size()) {
                         Rune rune = allRunes.get(runeIndex);
                         renderRunePage(guiGraphics, displayStack, rune);
                     }
+                } else {
+                    renderWeaponLinkPage(guiGraphics, weaponStack);
                 }
 
+                updatePageButtons(guiGraphics, totalPages);
+            } else if (!weaponStack.isEmpty()) {
+                totalPages = 2;
+                if (currentPage == 0) {
+                    renderWeaponBasicInfo(guiGraphics, weaponStack);
+                } else {
+                    renderWeaponLinkPage(guiGraphics, weaponStack);
+                }
                 updatePageButtons(guiGraphics, totalPages);
             }
         } else {
             prevPageButton.active = false;
             nextPageButton.active = false;
         }
+    }
+
+    private void renderWeaponBasicInfo(GuiGraphics guiGraphics, ItemStack stack) {
+        currentInfoLines.clear();
+        
+        currentInfoLines.add("§d✦ 武器信息");
+        currentInfoLines.add("§f" + stack.getDisplayName().getString());
+
+        String weaponType = getWeaponType(stack);
+        if (!weaponType.isEmpty()) {
+            currentInfoLines.add("§c类型: §f" + weaponType);
+        }
+
+        List<String> enchants = getEnchants(stack);
+        if (!enchants.isEmpty()) {
+            currentInfoLines.add("§5附魔:");
+            for (String ench : enchants) {
+                currentInfoLines.add("§7  " + ench);
+            }
+        }
+
+        int startLine = infoPage * MAX_INFO_LINES;
+        int endLine = Math.min(startLine + MAX_INFO_LINES, currentInfoLines.size());
+        
+        int infoY = 17;
+        for (int i = startLine; i < endLine; i++) {
+            String line = currentInfoLines.get(i);
+            guiGraphics.drawString(this.font, line, INFO_AREA_X, infoY, 0xFFFFFF, true);
+            infoY += LINE_HEIGHT;
+        }
+    }
+
+    private void renderWeaponLinkPage(GuiGraphics guiGraphics, ItemStack mainWeapon) {
+        guiGraphics.drawString(this.font, "§d✦ 攻击链接", INFO_AREA_X, 17, 0xFFFFFF, true);
+        
+        String[] slotLabels = {"主武器", "链接1", "链接2", "链接3"};
+        for (int i = 0; i < 4; i++) {
+            int y = 35 + i * 30;
+            
+            guiGraphics.drawString(this.font, "§e" + slotLabels[i] + ":", INFO_AREA_X, y, 0xFFFFFF, true);
+            
+            ItemStack linkStack;
+            if (i == 0) {
+                linkStack = mainWeapon;
+            } else {
+                linkStack = menu.getLinkSlotStack(ChiselStoneForgingTableBlockEntity.LINK_SLOT_1 + i);
+            }
+            
+            if (!linkStack.isEmpty()) {
+                String itemName = linkStack.getDisplayName().getString();
+                if (itemName.length() > 12) {
+                    itemName = itemName.substring(0, 12) + "...";
+                }
+                guiGraphics.drawString(this.font, "§f" + itemName, INFO_AREA_X + 50, y, 0xFFFFFF, true);
+            } else {
+                guiGraphics.drawString(this.font, "§7空", INFO_AREA_X + 50, y, 0x888888, true);
+            }
+            
+            int keyCode = linkKeyBindings[i];
+            String keyText = keyCode >= 0 ? GLFW.glfwGetKeyName(keyCode, 0) : null;
+            if (keyText != null) {
+                guiGraphics.drawString(this.font, "§a[" + keyText.toUpperCase() + "]", INFO_AREA_X + 130, y, 0xFFFFFF, true);
+            } else {
+                guiGraphics.drawString(this.font, "§7[未设置]", INFO_AREA_X + 130, y, 0x888888, true);
+            }
+            
+            if (waitingForKeySlot == i) {
+                guiGraphics.drawString(this.font, "§e<点击设置按键>", INFO_AREA_X + 50, y + 12, 0xFFFF00, true);
+            }
+        }
+        
+        guiGraphics.drawString(this.font, "§7提示: 点击此处设置按键", INFO_AREA_X, 160, 0x888888, true);
     }
 
     private void renderChiselInfo(GuiGraphics guiGraphics, ItemStack displayStack) {
@@ -318,6 +424,43 @@ public class ChiselStoneForgingTableScreen extends AbstractContainerScreen<Chise
                 }
             }
         }
+
+        ItemStack weaponStack = menu.getWeaponStack();
+        if (!weaponStack.isEmpty()) {
+            int totalPages = allRunes.size() + 2;
+            if (currentPage == totalPages - 1) {
+                double relY = mouseY - topPos;
+                
+                for (int i = 0; i < 4; i++) {
+                    int y = 35 + i * 30;
+                    if (relY >= y && relY <= y + 25) {
+                        waitingForKeySlot = i;
+                        return true;
+                    }
+                }
+            }
+        }
+
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (waitingForKeySlot >= 0) {
+            linkKeyBindings[waitingForKeySlot] = keyCode;
+            
+            int slot = ChiselStoneForgingTableBlockEntity.LINK_SLOT_1 + waitingForKeySlot;
+            NetworkHandler.INSTANCE.sendToServer(new SetLinkKeyPacket(menu.getBlockEntity().getBlockPos(), slot, keyCode));
+            
+            waitingForKeySlot = -1;
+            return true;
+        }
+        
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        return super.keyReleased(keyCode, scanCode, modifiers);
     }
 }

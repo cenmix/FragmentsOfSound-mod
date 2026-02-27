@@ -42,5 +42,29 @@ public class NetworkHandler {
             .decoder(StopCinematicPacket::decode)
             .consumerMainThread(StopCinematicPacket::handle)
             .add();
+        
+        INSTANCE.messageBuilder(PlaceOutpostPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+            .encoder(PlaceOutpostPacket::encode)
+            .decoder(PlaceOutpostPacket::decode)
+            .consumerMainThread(PlaceOutpostPacket::handle)
+            .add();
+        
+        INSTANCE.messageBuilder(RemoveOutpostPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+            .encoder(RemoveOutpostPacket::encode)
+            .decoder(RemoveOutpostPacket::decode)
+            .consumerMainThread(RemoveOutpostPacket::handle)
+            .add();
+        
+        INSTANCE.messageBuilder(SetLinkKeyPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+            .encoder(SetLinkKeyPacket::encode)
+            .decoder(SetLinkKeyPacket::decode)
+            .consumerMainThread(SetLinkKeyPacket::handle)
+            .add();
+        
+        INSTANCE.messageBuilder(SyncWeaponLinkPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+            .encoder(SyncWeaponLinkPacket::encode)
+            .decoder(SyncWeaponLinkPacket::decode)
+            .consumerMainThread(SyncWeaponLinkPacket::handle)
+            .add();
     }
 }

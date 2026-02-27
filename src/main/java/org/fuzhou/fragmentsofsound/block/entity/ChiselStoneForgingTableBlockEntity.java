@@ -3,6 +3,7 @@ package org.fuzhou.fragmentsofsound.block.entity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -25,9 +26,12 @@ import org.fuzhou.fragmentsofsound.menu.ChiselStoneForgingTableMenu;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class ChiselStoneForgingTableBlockEntity extends BlockEntity implements MenuProvider {
 
-    private final ItemStackHandler itemHandler = new ItemStackHandler(3) {
+    private final ItemStackHandler itemHandler = new ItemStackHandler(7) {
         @Override
         protected void onContentsChanged(int slot) {
             setChanged();
@@ -42,6 +46,13 @@ public class ChiselStoneForgingTableBlockEntity extends BlockEntity implements M
     public static final int WEAPON_SLOT = 0;
     public static final int RUNE_SLOT = 1;
     public static final int OUTPUT_SLOT = 2;
+    public static final int LINK_SLOT_START = 3;
+    public static final int LINK_SLOT_1 = 3;
+    public static final int LINK_SLOT_2 = 4;
+    public static final int LINK_SLOT_3 = 5;
+    public static final int LINK_SLOT_4 = 6;
+
+    private Map<Integer, Integer> linkKeyBindings = new HashMap<>();
 
     public ChiselStoneForgingTableBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityTypes.CHISEL_STONE_FORGING_TABLE.get(), pos, state);
@@ -94,9 +105,47 @@ public class ChiselStoneForgingTableBlockEntity extends BlockEntity implements M
         return itemHandler.getStackInSlot(OUTPUT_SLOT);
     }
 
+    public ItemStack getLinkSlotStack(int slot) {
+        if (slot >= LINK_SLOT_1 && slot <= LINK_SLOT_4) {
+            return itemHandler.getStackInSlot(slot);
+        }
+        return ItemStack.EMPTY;
+    }
+
+    public void setLinkSlotStack(int slot, ItemStack stack) {
+        if (slot >= LINK_SLOT_1 && slot <= LINK_SLOT_4) {
+            itemHandler.setStackInSlot(slot, stack);
+        }
+    }
+
+    public int getLinkKeyBinding(int slot) {
+        return linkKeyBindings.getOrDefault(slot, -1);
+    }
+
+    public void setLinkKeyBinding(int slot, int keyCode) {
+        linkKeyBindings.put(slot, keyCode);
+        setChanged();
+    }
+
+    public Map<Integer, Integer> getLinkKeyBindings() {
+        return linkKeyBindings;
+    }
+
+    public void setLinkKeyBindings(Map<Integer, Integer> bindings) {
+        this.linkKeyBindings = new HashMap<>(bindings);
+        setChanged();
+    }
+
     @Override
     protected void saveAdditional(CompoundTag tag) {
         tag.put("inventory", itemHandler.serializeNBT());
+        
+        CompoundTag keyBindingsTag = new CompoundTag();
+        for (Map.Entry<Integer, Integer> entry : linkKeyBindings.entrySet()) {
+            keyBindingsTag.putInt("slot_" + entry.getKey(), entry.getValue());
+        }
+        tag.put("linkKeyBindings", keyBindingsTag);
+        
         super.saveAdditional(tag);
     }
 
@@ -106,12 +155,34 @@ public class ChiselStoneForgingTableBlockEntity extends BlockEntity implements M
         if (tag.contains("inventory")) {
             itemHandler.deserializeNBT(tag.getCompound("inventory"));
         }
+        
+        linkKeyBindings.clear();
+        if (tag.contains("linkKeyBindings")) {
+            CompoundTag keyBindingsTag = tag.getCompound("linkKeyBindings");
+            for (String key : keyBindingsTag.getAllKeys()) {
+                if (key.startsWith("slot_")) {
+                    try {
+                        int slot = Integer.parseInt(key.substring(5));
+                        int keyCode = keyBindingsTag.getInt(key);
+                        linkKeyBindings.put(slot, keyCode);
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
     }
 
     @Override
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();
         tag.put("inventory", itemHandler.serializeNBT());
+        
+        CompoundTag keyBindingsTag = new CompoundTag();
+        for (Map.Entry<Integer, Integer> entry : linkKeyBindings.entrySet()) {
+            keyBindingsTag.putInt("slot_" + entry.getKey(), entry.getValue());
+        }
+        tag.put("linkKeyBindings", keyBindingsTag);
+        
         return tag;
     }
 
@@ -120,6 +191,21 @@ public class ChiselStoneForgingTableBlockEntity extends BlockEntity implements M
         super.handleUpdateTag(tag);
         if (tag.contains("inventory")) {
             itemHandler.deserializeNBT(tag.getCompound("inventory"));
+        }
+        
+        linkKeyBindings.clear();
+        if (tag.contains("linkKeyBindings")) {
+            CompoundTag keyBindingsTag = tag.getCompound("linkKeyBindings");
+            for (String key : keyBindingsTag.getAllKeys()) {
+                if (key.startsWith("slot_")) {
+                    try {
+                        int slot = Integer.parseInt(key.substring(5));
+                        int keyCode = keyBindingsTag.getInt(key);
+                        linkKeyBindings.put(slot, keyCode);
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
         }
     }
 

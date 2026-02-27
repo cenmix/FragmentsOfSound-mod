@@ -1,6 +1,7 @@
 package org.fuzhou.fragmentsofsound.menu;
 
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -8,15 +9,20 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.network.PacketDistributor;
 import org.fuzhou.fragmentsofsound.block.entity.ChiselStoneForgingTableBlockEntity;
 import org.fuzhou.fragmentsofsound.item.ArmorBreakRuneItem;
 import org.fuzhou.fragmentsofsound.item.ChiselStoneItem;
 import org.fuzhou.fragmentsofsound.item.PierceRuneItem;
+import org.fuzhou.fragmentsofsound.network.NetworkHandler;
+import org.fuzhou.fragmentsofsound.network.SyncWeaponLinkPacket;
 import org.fuzhou.fragmentsofsound.rune.Rune;
 import org.fuzhou.fragmentsofsound.rune.RuneData;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ChiselStoneForgingTableMenu extends AbstractContainerMenu {
 
@@ -38,6 +44,11 @@ public class ChiselStoneForgingTableMenu extends AbstractContainerMenu {
         this.addSlot(new WeaponToolSlot(this.blockEntity.getItemHandler(), ChiselStoneForgingTableBlockEntity.WEAPON_SLOT, 8, 17));
         this.addSlot(new RuneSlot(this.blockEntity.getItemHandler(), ChiselStoneForgingTableBlockEntity.RUNE_SLOT, 8, 53));
         this.addSlot(new OutputSlot(this.blockEntity.getItemHandler(), ChiselStoneForgingTableBlockEntity.OUTPUT_SLOT, 140, 35));
+
+        this.addSlot(new WeaponLinkSlot(this.blockEntity.getItemHandler(), ChiselStoneForgingTableBlockEntity.LINK_SLOT_1, 90, 35, true));
+        this.addSlot(new WeaponLinkSlot(this.blockEntity.getItemHandler(), ChiselStoneForgingTableBlockEntity.LINK_SLOT_2, 90, 65, false));
+        this.addSlot(new WeaponLinkSlot(this.blockEntity.getItemHandler(), ChiselStoneForgingTableBlockEntity.LINK_SLOT_3, 90, 95, false));
+        this.addSlot(new WeaponLinkSlot(this.blockEntity.getItemHandler(), ChiselStoneForgingTableBlockEntity.LINK_SLOT_4, 90, 125, false));
     }
 
     private void addPlayerInventory(Inventory inventory) {
@@ -160,6 +171,19 @@ public class ChiselStoneForgingTableMenu extends AbstractContainerMenu {
             syncToClient();
         }
     }
+
+    public void setLinkKeyBinding(int slot, int keyCode) {
+        blockEntity.setLinkKeyBinding(slot, keyCode);
+        syncToClient();
+    }
+
+    public int getLinkKeyBinding(int slot) {
+        return blockEntity.getLinkKeyBinding(slot);
+    }
+
+    public Map<Integer, Integer> getLinkKeyBindings() {
+        return blockEntity.getLinkKeyBindings();
+    }
     
     private void syncToClient() {
         if (blockEntity.getLevel() != null && !blockEntity.getLevel().isClientSide) {
@@ -176,12 +200,23 @@ public class ChiselStoneForgingTableMenu extends AbstractContainerMenu {
         ItemStack sourceStack = sourceSlot.getItem();
         ItemStack copyStack = sourceStack.copy();
 
-        if (index < 36) {
-            if (!moveItemStackTo(sourceStack, 36, 39, false)) {
+        int playerSlots = 36;
+        int forgeSlots = 3;
+        int linkSlots = 4;
+        int totalContainerSlots = playerSlots + forgeSlots + linkSlots;
+
+        if (index < playerSlots) {
+            if (!moveItemStackTo(sourceStack, playerSlots, playerSlots + forgeSlots, false)) {
+                if (!moveItemStackTo(sourceStack, playerSlots + forgeSlots, totalContainerSlots, false)) {
+                    return ItemStack.EMPTY;
+                }
+            }
+        } else if (index < playerSlots + forgeSlots) {
+            if (!moveItemStackTo(sourceStack, 0, playerSlots, false)) {
                 return ItemStack.EMPTY;
             }
-        } else if (index < 39) {
-            if (!moveItemStackTo(sourceStack, 0, 36, false)) {
+        } else if (index < totalContainerSlots) {
+            if (!moveItemStackTo(sourceStack, 0, playerSlots, false)) {
                 return ItemStack.EMPTY;
             }
         } else {
@@ -209,5 +244,34 @@ public class ChiselStoneForgingTableMenu extends AbstractContainerMenu {
 
     public ItemStack getWeaponStack() {
         return blockEntity.getWeaponStack();
+    }
+
+    public ItemStack getLinkSlotStack(int slot) {
+        return blockEntity.getLinkSlotStack(slot);
+    }
+
+    @Override
+    public void removed(Player player) {
+        super.removed(player);
+        
+        if (!player.level().isClientSide && player instanceof ServerPlayer serverPlayer) {
+            syncWeaponLinkData(serverPlayer);
+        }
+    }
+
+    private void syncWeaponLinkData(ServerPlayer player) {
+        Map<Integer, Integer> keyBindings = blockEntity.getLinkKeyBindings();
+        Map<Integer, ItemStack> linkedWeapons = new HashMap<>();
+        
+        for (int i = 0; i < 4; i++) {
+            int slot = ChiselStoneForgingTableBlockEntity.LINK_SLOT_1 + i;
+            ItemStack stack = blockEntity.getLinkSlotStack(slot);
+            if (!stack.isEmpty()) {
+                linkedWeapons.put(slot, stack.copy());
+            }
+        }
+        
+        SyncWeaponLinkPacket packet = new SyncWeaponLinkPacket(keyBindings, linkedWeapons);
+        NetworkHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
     }
 }

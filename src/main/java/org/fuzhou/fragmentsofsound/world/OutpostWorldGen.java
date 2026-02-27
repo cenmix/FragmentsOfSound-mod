@@ -13,13 +13,18 @@ import net.minecraftforge.fml.common.Mod;
 import org.fuzhou.fragmentsofsound.Config;
 import org.fuzhou.fragmentsofsound.Fragmentsofsound;
 
+import java.util.HashSet;
 import java.util.Random;
-import java.util.WeakHashMap;
+import java.util.Set;
 
 @Mod.EventBusSubscriber(modid = Fragmentsofsound.MODID)
 public class OutpostWorldGen {
     
-    private static final WeakHashMap<ChunkAccess, Boolean> processedChunks = new WeakHashMap<>();
+    private static final Set<ChunkPos> processedChunks = new HashSet<>();
+    
+    public static void clearProcessedChunks() {
+        processedChunks.clear();
+    }
     
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onChunkLoad(ChunkEvent.Load event) {
@@ -36,34 +41,34 @@ public class OutpostWorldGen {
         }
         
         ChunkAccess chunk = event.getChunk();
-        
-        if (processedChunks.containsKey(chunk)) {
-            return;
-        }
+        ChunkPos chunkPos = chunk.getPos();
         
         int startDay = Config.OUTPOST_SPAWN_START_DAY.get();
         long startDayTicks = startDay * 24000L;
         
-        long dayTime = level.getDayTime();
+        long dayTime = level.getGameTime();
         if (dayTime < startDayTicks) {
             return;
         }
         
-        processedChunks.put(chunk, true);
+        if (processedChunks.contains(chunkPos)) {
+            return;
+        }
+        
+        processedChunks.add(chunkPos);
         
         double chance = Config.OUTPOST_CHUNK_SPAWN_CHANCE.get();
-        Random random = new Random(chunk.getPos().toLong());
+        Random random = new Random(chunkPos.toLong());
         if (random.nextDouble() >= chance) {
             return;
         }
         
-        ChunkPos chunkPos = chunk.getPos();
         int x = chunkPos.getMinBlockX() + random.nextInt(16);
         int z = chunkPos.getMinBlockZ() + random.nextInt(16);
         
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         
-        BlockPos pos = new BlockPos(x, y - 1, z);
+        BlockPos pos = new BlockPos(x, y, z);
         BlockState groundState = level.getBlockState(pos);
         
         if (groundState.isAir() || groundState.canBeReplaced()) {
@@ -73,7 +78,7 @@ public class OutpostWorldGen {
         int outpostLevel;
         if (Config.OUTPOST_LEVEL_BY_DISTANCE.get()) {
             BlockPos spawnPos = level.getSharedSpawnPos();
-            double distance = Math.sqrt(Math.pow(x - spawnPos.getX(), 2) + Math.pow(z - spawnPos.getZ(), 2));
+            double distance = Math.sqrt(Math.pow(x - spawnPos.getX(),2) + Math.pow(z - spawnPos.getZ(),2));
             outpostLevel = calculateOutpostLevel(distance);
         } else {
             outpostLevel = 1;

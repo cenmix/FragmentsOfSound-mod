@@ -12,6 +12,9 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.fuzhou.fragmentsofsound.Config;
 import org.fuzhou.fragmentsofsound.Fragmentsofsound;
+import org.fuzhou.fragmentsofsound.network.NetworkHandler;
+import org.fuzhou.fragmentsofsound.network.PlaceOutpostPacket;
+import org.fuzhou.fragmentsofsound.network.RemoveOutpostPacket;
 
 import java.util.Random;
 
@@ -97,10 +100,7 @@ public class CinematicRenderer {
         LocalPlayer player = mc.player;
         
         if (currentCinematic != null && !currentCinematic.shouldApplyChanges() && outpostPlaced && placedOutpostPos != null) {
-            player.connection.sendUnsignedCommand(
-                String.format("setblock %d %d %d air",
-                    placedOutpostPos.getX(), placedOutpostPos.getY(), placedOutpostPos.getZ())
-            );
+            NetworkHandler.INSTANCE.sendToServer(new RemoveOutpostPacket(placedOutpostPos));
         }
         
         if (originalPosition != null) {
@@ -111,11 +111,6 @@ public class CinematicRenderer {
             player.yHeadRot = originalYaw;
             player.yRotO = originalYaw;
             player.xRotO = originalPitch;
-            player.lerpTargetX = originalPosition.x;
-            player.lerpTargetY = originalPosition.y;
-            player.lerpTargetZ = originalPosition.z;
-            player.lerpTargetYaw = originalYaw;
-            player.lerpTargetPitch = originalPitch;
         }
         
         if (!wasCreative) {
@@ -184,9 +179,6 @@ public class CinematicRenderer {
         double eyeY = targetPos.getY() + currentHeight;
         double eyeZ = targetPos.getZ() + 0.5;
         
-        player.moveTo(eyeX, eyeY, eyeZ, currentRotation, 90.0f);
-        player.setPos(eyeX, eyeY, eyeZ);
-        
         player.setYRot(currentRotation);
         player.setXRot(90.0f);
         player.yHeadRot = currentRotation;
@@ -217,16 +209,10 @@ public class CinematicRenderer {
     private static void placeOutpost() {
         if (currentCinematic == null || currentCinematic.getTargetPosition() == null) return;
         
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return;
-        
         BlockPos pos = currentCinematic.getTargetPosition();
         int outpostLevel = currentCinematic.getOutpostLevel();
         
-        mc.player.connection.sendUnsignedCommand(
-            String.format("setblock %d %d %d fragmentsofsound:monster_outpost_%d",
-                pos.getX(), pos.getY(), pos.getZ(), outpostLevel)
-        );
+        NetworkHandler.INSTANCE.sendToServer(new PlaceOutpostPacket(pos, outpostLevel));
         
         outpostPlaced = true;
         placedOutpostPos = pos;

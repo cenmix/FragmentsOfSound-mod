@@ -36,7 +36,7 @@ public class CinematicEventHandler {
             ServerLevel level = player.serverLevel();
             CinematicManager manager = CinematicManager.get(level);
             
-            long dayTime = level.getDayTime();
+            long dayTime = level.getGameTime();
             int currentDay = (int) (dayTime / 24000);
             
             if (currentDay >= 2 && !manager.hasDay2CinematicPlayed()) {
@@ -75,7 +75,7 @@ public class CinematicEventHandler {
         }
         checkCooldowns.put(level, 0);
         
-        long dayTime = level.getDayTime();
+        long dayTime = level.getGameTime();
         int currentDay = (int) (dayTime / 24000);
         
         if (currentDay >= 1 && !manager.hasDay2CinematicPlayed()) {
@@ -84,7 +84,7 @@ public class CinematicEventHandler {
         }
     }
     
-    private static void triggerDay2Cinematic(ServerPlayer player, ServerLevel level, CinematicManager manager) {
+    public static void triggerDay2Cinematic(ServerPlayer player, ServerLevel level, CinematicManager manager) {
         if (manager.hasDay2CinematicPlayed()) {
             return;
         }
@@ -135,7 +135,7 @@ public class CinematicEventHandler {
             
             int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
             
-            BlockPos testPos = new BlockPos(x, y - 1, z);
+            BlockPos testPos = new BlockPos(x, y, z);
             BlockState groundState = level.getBlockState(testPos);
             
             if (!groundState.isAir() && !groundState.canBeReplaced()) {
