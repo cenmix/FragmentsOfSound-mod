@@ -26,7 +26,7 @@ public class PierceRuneItem extends Item {
         tooltip.add(Component.literal("§5✧ §b§l穿刺契纹 §5✧"));
         tooltip.add(Component.literal(""));
         tooltip.add(Component.literal("§e✦ 效果说明"));
-        tooltip.add(Component.literal("§7  史诗战斗重击时"));
+        tooltip.add(Component.literal("§7  每五次攻击"));
         tooltip.add(Component.literal("§7  给敌人叠加一层破防层数"));
         tooltip.add(Component.literal(""));
         tooltip.add(Component.literal("§6⚡ 可刻入武器或锲石"));
